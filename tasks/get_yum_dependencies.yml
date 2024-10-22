@@ -1,0 +1,27 @@
+---
+
+- name: Install jdk 8
+  package:
+    name: java-1.8.0-openjdk
+    state: present
+  when: jfmc_install_jdk8
+
+- name: Install openssl
+  package:
+    name: openssl 
+    state: present
+
+- name: Install PHP
+  package:
+    name: php.x86_64
+    state: present
+
+- name: Install PHP FastCGI Process Manager
+  package:
+    name: php-fpm 
+    state: present
+
+- name: Install net-tools
+  package:
+    name: net-tools 
+    state: present

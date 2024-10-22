@@ -1,0 +1,79 @@
+---
+
+- name: Install yum dependencies
+  include_tasks: get_yum_dependencies.yml
+
+- name: Creates mission-control directory 
+  file:
+    path: /opt/jfrog/mission-control/installer
+    state: directory
+
+- name: Extract mission control .tar
+  unarchive:
+    src: https://github.com/stone-payments/ansible-jfrog-mission-control/releases/download/v0.1-alpha/jfmc-redhat-2.1.1.tar.gz
+    dest: /opt/jfrog/mission-control/installer
+    remote_src: yes
+    creates: /opt/jfrog/mission-control/installer/jfmc-redhat-2.1.1
+
+- name: Remove original shell script installer
+  file:
+    path: /opt/jfrog/mission-control/installer/jfmc-redhat-2.1.1/installJFMC-redhat.sh
+    state: absent
+
+- name: Generate install script
+  template:
+    src: ../templates/installJFMC-redhat.sh
+    dest: /opt/jfrog/mission-control/installer/jfmc-redhat-2.1.1/ansible_installJFMC-redhat.sh
+    mode: 0755
+
+- name: SELinux tweaks
+  include_tasks: selinux.yml
+  when: jfmc_selinux_tweaks
+
+- name: Check if jfmc service exists
+  stat: path=/etc/init.d/mission-control
+  register: service_status
+  changed_when: false
+
+- name: Run installer shell script
+  shell: /opt/jfrog/mission-control/installer/jfmc-redhat-2.1.1/ansible_installJFMC-redhat.sh
+  when: not service_status.stat.exists
+  register: install_script
+
+- name: Create jfi-core data directory
+  file:
+    path: /var/opt/jfrog/mission-control/jfi-core/_MASTER_/data
+    state: directory
+    owner: "{{ jfmc_user }}"
+    group: "{{ jfmc_group }}"
+    mode: 0754
+
+- name: Ensure SELinux file contexts are applied
+  shell: restorecon -R -v "{{ item }}"
+  with_items:
+    - "/var/opt/jfrog/mission-control/jfi-core/_MASTER_/data"
+    - "/var/opt/jfrog/mission-control/logs"
+  register: restorecon
+  changed_when: restorecon.stdout != ""
+
+- name: Run start script
+  shell: /opt/jfrog/mission-control/scripts/jfmc.sh start
+  when: install_script.changed
+
+- name: Enable nginx service
+  service:
+    name: nginx
+    state: started
+    enabled: yes
+
+- name: Enable php-fpm service
+  service:
+    name: php-fpm
+    state: started
+    enabled: yes
+
+- name: Enable elasticsearch service
+  service:
+    name: elasticsearch
+    state: started
+    enabled: yes
